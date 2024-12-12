@@ -24,7 +24,7 @@ class PatternAnalysis:
         )
         print("\nPeak Hours for Each Cluster:\n", peak_hours)
 
-    def visualize_clusters(self):
+    def visualize_clusters(self, algo):
         # Map clusters with color-coded markers
         plt.figure(figsize=(10, 8))
         plt.scatter(
@@ -38,10 +38,10 @@ class PatternAnalysis:
         plt.xlabel("Longitude")
         plt.ylabel("Latitude")
         plt.title("User Mobility Clusters")
-        plt.savefig("cluster_map.png")  # Save plot as image file
+        plt.savefig(f"{algo}_cluster_map.png")  # Save plot as image file
         print("Cluster map saved as cluster_map.png")
 
-    def plot_temporal_heatmap(self):
+    def plot_temporal_heatmap(self, algo):
         # Example temporal heatmap for peak hours by cluster
         heatmap_data = (
             self.data.groupby(["cluster", "hour"]).size().unstack(fill_value=0)
@@ -52,7 +52,7 @@ class PatternAnalysis:
         plt.xlabel("Hour of Day")
         plt.ylabel("Cluster")
         plt.title("Peak Hours Heatmap for Each Cluster")
-        plt.savefig("temporal_heatmap.png")  # Save plot as image file
+        plt.savefig(f"{algo}_temporal_heatmap.png")  # Save plot as image file
         print("Temporal heatmap saved as temporal_heatmap.png")
 
 
@@ -70,5 +70,5 @@ if __name__ == "__main__":
 
     pattern_analysis = PatternAnalysis(clustered_data)
     pattern_analysis.analyze_clusters()
-    pattern_analysis.visualize_clusters()
-    pattern_analysis.plot_temporal_heatmap()
+    pattern_analysis.visualize_clusters(clustering_model.algorithm)
+    pattern_analysis.plot_temporal_heatmap(clustering_model.algorithm)
