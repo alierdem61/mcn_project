@@ -1,14 +1,25 @@
 import matplotlib.pyplot as plt
-from collection import DataCollectionLayer
-from preprocess import DataPreprocessingLayer
-from cluster import ClusteringModel
+import pandas as pd
+import os
 
 
 class PatternAnalysis:
     def __init__(self, clustered_data):
+        """
+        Initialize PatternAnalysis with clustered data.
+
+        Args:
+            clustered_data (DataFrame): Data with cluster assignments and relevant features.
+        """
         self.data = clustered_data
 
     def analyze_clusters(self):
+        """
+        Perform analysis on the clustered data:
+        - Calculate cluster centers.
+        - Calculate cluster sizes.
+        - Perform temporal analysis for peak hours.
+        """
         # Cluster center analysis
         cluster_centers = self.data.groupby("cluster")[["lat", "lon"]].mean()
         print("Cluster Centers:\n", cluster_centers)
@@ -17,15 +28,23 @@ class PatternAnalysis:
         cluster_sizes = self.data["cluster"].value_counts()
         print("\nCluster Sizes:\n", cluster_sizes)
 
-        # Temporal analysis (assuming 'timestamp' column exists)
-        self.data["hour"] = self.data["timestamp"].dt.hour
-        peak_hours = (
-            self.data.groupby("cluster")["hour"].value_counts().unstack(fill_value=0)
-        )
-        print("\nPeak Hours for Each Cluster:\n", peak_hours)
+        # Temporal analysis (assuming 'hour' column exists)
+        if "timestamp" in self.data.columns:
+            self.data["hour"] = pd.to_datetime(self.data["timestamp"]).dt.hour
+            peak_hours = (
+                self.data.groupby("cluster")["hour"]
+                .value_counts()
+                .unstack(fill_value=0)
+            )
+            print("\nPeak Hours for Each Cluster:\n", peak_hours)
 
     def visualize_clusters(self, algo):
-        # Map clusters with color-coded markers
+        """
+        Create and save a scatter plot of the clusters.
+
+        Args:
+            algo (str): The clustering algorithm used (for file naming).
+        """
         plt.figure(figsize=(10, 8))
         plt.scatter(
             self.data["lon"],
@@ -39,36 +58,51 @@ class PatternAnalysis:
         plt.ylabel("Latitude")
         plt.title("User Mobility Clusters")
         plt.savefig(f"{algo}_cluster_map.png")  # Save plot as image file
-        print("Cluster map saved as cluster_map.png")
+        print(f"Cluster map saved as {algo}_cluster_map.png")
 
     def plot_temporal_heatmap(self, algo):
-        # Example temporal heatmap for peak hours by cluster
+        """
+        Create and save a heatmap for peak hours by cluster.
+
+        Args:
+            algo (str): The clustering algorithm used (for file naming).
+        """
+        if "hour" not in self.data.columns:
+            self.data["hour"] = pd.to_datetime(self.data["timestamp"]).dt.hour
+
         heatmap_data = (
             self.data.groupby(["cluster", "hour"]).size().unstack(fill_value=0)
         )
         plt.figure(figsize=(10, 6))
-        plt.imshow(heatmap_data, aspect="auto", cmap="coolwarm")
+        plt.imshow(heatmap_data, aspect="auto", cmap="coolwarm", origin="lower")
         plt.colorbar(label="Frequency")
         plt.xlabel("Hour of Day")
         plt.ylabel("Cluster")
         plt.title("Peak Hours Heatmap for Each Cluster")
         plt.savefig(f"{algo}_temporal_heatmap.png")  # Save plot as image file
-        print("Temporal heatmap saved as temporal_heatmap.png")
+        print(f"Temporal heatmap saved as {algo}_temporal_heatmap.png")
 
 
 if __name__ == "__main__":
-    data_layer = DataCollectionLayer(
-        "/home/alierdem/mcn_pjkt/data/Geolife Trajectories 1.3/Data"
+    # Perform analysis and visualization
+    algorithm_used = "hdbscan"  # Replace with the actual algorithm used
+
+    # Path to the clustered data CSV file
+    clustered_file_path = (
+        f"/home/alierdem/mcn_pjkt/data/{algorithm_used}_clustered_data.csv"
     )
-    raw_data = data_layer.load_data()
-    preprocess_layer = DataPreprocessingLayer(raw_data)
-    clean_data = preprocess_layer.preprocess_data()
-    transformed_data = preprocess_layer.transform_data()
 
-    clustering_model = ClusteringModel(n_clusters=3)
-    clustered_data = clustering_model.fit(transformed_data)
+    if not os.path.exists(clustered_file_path):
+        raise FileNotFoundError(
+            f"Clustered data file not found at {clustered_file_path}. Please run clustering first."
+        )
 
+    # Load the clustered data
+    clustered_data = pd.read_csv(clustered_file_path)
+
+    # Initialize PatternAnalysis
     pattern_analysis = PatternAnalysis(clustered_data)
+
     pattern_analysis.analyze_clusters()
-    pattern_analysis.visualize_clusters(clustering_model.algorithm)
-    pattern_analysis.plot_temporal_heatmap(clustering_model.algorithm)
+    pattern_analysis.visualize_clusters(algorithm_used)
+    pattern_analysis.plot_temporal_heatmap(algorithm_used)
