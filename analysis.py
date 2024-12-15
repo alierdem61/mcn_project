@@ -1,17 +1,53 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+import numpy as np
+import pickle
 
 
 class PatternAnalysis:
-    def __init__(self, clustered_data):
+    def __init__(self, clustered_data, normalization_params_path):
         """
         Initialize PatternAnalysis with clustered data.
 
         Args:
             clustered_data (DataFrame): Data with cluster assignments and relevant features.
+            normalization_params_path (str): Path to the file containing normalization parameters.
         """
         self.data = clustered_data
+        self.normalization_params_path = normalization_params_path
+        self.scaler = None
+        self._load_normalization_params()
+
+    def _load_normalization_params(self):
+        """
+        Load normalization parameters from the specified .pkl file.
+        """
+        if not os.path.exists(self.normalization_params_path):
+            raise FileNotFoundError(
+                f"Normalization parameters file not found at {self.normalization_params_path}."
+            )
+        with open(self.normalization_params_path, "rb") as f:
+            self.scaler = pickle.load(f)  # Single scaler for all three features
+        print("Normalization parameters loaded.")
+
+    def undo_normalization(self):
+        """
+        Undo normalization for latitude, longitude, and speed using a single scaler.
+        """
+        if self.scaler is None:
+            raise ValueError("Normalization parameters are not loaded.")
+
+        # Extract normalized features
+        normalized_features = self.data[["lat", "lon", "speed"]].values
+
+        # Apply inverse transform using the combined scaler
+        original_features = self.scaler.inverse_transform(normalized_features)
+
+        # Restore original values
+        self.data[["lat", "lon", "speed"]] = original_features
+
+        print("Normalization undone.")
 
     def analyze_clusters(self):
         """
@@ -85,12 +121,13 @@ class PatternAnalysis:
 
 if __name__ == "__main__":
     # Perform analysis and visualization
-    algorithm_used = "hdbscan"  # Replace with the actual algorithm used
+    algorithm_used = "kmeans"  # Replace with the actual algorithm used
 
     # Path to the clustered data CSV file
     clustered_file_path = (
         f"/home/alierdem/mcn_pjkt/data/{algorithm_used}_clustered_data.csv"
     )
+    normalization_params_path = "/home/alierdem/mcn_pjkt/data/normalization_data.pkl"
 
     if not os.path.exists(clustered_file_path):
         raise FileNotFoundError(
@@ -101,8 +138,12 @@ if __name__ == "__main__":
     clustered_data = pd.read_csv(clustered_file_path)
 
     # Initialize PatternAnalysis
-    pattern_analysis = PatternAnalysis(clustered_data)
+    pattern_analysis = PatternAnalysis(clustered_data, normalization_params_path)
 
+    # Undo normalization before analysis
+    pattern_analysis.undo_normalization()
+
+    # Perform analysis and visualization
     pattern_analysis.analyze_clusters()
     pattern_analysis.visualize_clusters(algorithm_used)
     pattern_analysis.plot_temporal_heatmap(algorithm_used)

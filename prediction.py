@@ -135,8 +135,24 @@ def evaluate_predictions(test_sequence, transition_matrix):
     return accuracy
 
 
+def save_predictions_to_file(algorithm_name, accuracy, file_path="predictions.txt"):
+    """
+    Save prediction results to a file.
+
+    Args:
+        algorithm_name (str): Name of the clustering algorithm used.
+        accuracy (float): Prediction accuracy as a percentage.
+        file_path (str): File path for saving predictions.
+    """
+    output_file = f"{algorithm_name}_{file_path}"
+    with open(output_file, "w") as f:
+        f.write(f"Algorithm: {algorithm_name}\n")
+        f.write(f"Prediction Accuracy: {accuracy:.2f}%\n")
+    print(f"Prediction results saved to {output_file}")
+
+
 if __name__ == "__main__":
-    algorithm_name = "dbscan"
+    algorithm_name = "agglomerative"
 
     # Example usage
     file_path = f"/home/alierdem/mcn_pjkt/data/{algorithm_name}_clustered_data.csv"  # Replace with the actual file path
@@ -174,3 +190,6 @@ if __name__ == "__main__":
     # Evaluate predictions on test data
     accuracy = evaluate_predictions(test_sequence, transition_matrix)
     print(f"\nPrediction Accuracy: {accuracy:.2f}%")
+
+    # Save predictions to a file
+    save_predictions_to_file(algorithm_name, accuracy)

@@ -1,6 +1,5 @@
 import pandas as pd
 from sklearn.metrics import silhouette_score, davies_bouldin_score
-from sklearn.preprocessing import StandardScaler
 
 
 class EvaluationLayer:
@@ -33,18 +32,14 @@ class EvaluationLayer:
         features = sample_data[["lat", "lon", "speed"]]
         labels = sample_data["cluster"]
 
-        # Scale features for evaluation
-        scaler = StandardScaler()
-        features_scaled = scaler.fit_transform(features)
-
         # Check for multiple clusters
         if len(set(labels)) > 1:
             # Calculate Silhouette Score
-            silhouette_avg = silhouette_score(features_scaled, labels)
+            silhouette_avg = silhouette_score(features, labels)
             print("Silhouette Score:", silhouette_avg)
 
             # Calculate Davies-Bouldin Index
-            db_index = davies_bouldin_score(features_scaled, labels)
+            db_index = davies_bouldin_score(features, labels)
             print("Davies-Bouldin Index:", db_index)
         else:
             print("Cannot calculate metrics with a single cluster.")
@@ -72,7 +67,12 @@ class EvaluationLayer:
 
 if __name__ == "__main__":
     # Specify the algorithm used for clustering
-    algorithm_used = "hdbscan"  # Update this value as needed
+    algorithm_used = "agglomerative"  # Update this value as needed
+    sample_fraction = 1.0
+    if algorithm_used in ["kmeans", "birch"]:
+        sample_fraction = 0.001
+    elif algorithm_used == "hdbscan":
+        sample_fraction = 0.1
 
     # Path to clustered data
     clustered_file_path = (
@@ -89,7 +89,7 @@ if __name__ == "__main__":
 
     # Initialize EvaluationLayer with sampling
     evaluation_layer = EvaluationLayer(
-        clustered_data, algorithm_used, sample_fraction=0.001
+        clustered_data, algorithm_used, sample_fraction=sample_fraction
     )
 
     # Evaluate clustering

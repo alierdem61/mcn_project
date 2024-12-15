@@ -1,19 +1,36 @@
-import os
-import pandas as pd
 import numpy as np
+import pandas as pd
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from collection import DataCollectionLayer
+import pickle  # For saving normalization data
 
 
 class DataPreprocessingLayer:
-
     def __init__(self, raw_data):
         self.raw_data = raw_data
+        self.scalers = {}  # Store scalers for normalization
 
     def preprocess_data(self):
         """
-        Removes invalid GPS points (latitude and longitude equal to 0).
+        Cleans the raw data by removing invalid points and duplicates,
+        and filters points within the geographical boundaries of China.
+        Returns:
+            Cleaned DataFrame.
         """
+        # Remove invalid latitude and longitude values (lat=0, lon=0)
         data = self.raw_data[(self.raw_data["lat"] != 0) & (self.raw_data["lon"] != 0)]
+
+        # Filter points within China's geographical boundaries
+        data = data[
+            (data["lat"] >= 20.14)
+            & (data["lat"] <= 53.33)
+            & (data["lon"] >= 73.5)
+            & (data["lon"] <= 134.77)
+        ]
+
+        # Remove duplicate rows
+        data = data.drop_duplicates()
+
         return data
 
     def calculate_speed_vectorized(self, data):
@@ -52,13 +69,55 @@ class DataPreprocessingLayer:
         data["speed"] = speeds
         return data
 
+    def add_temporal_features(self, data):
+        """
+        Adds temporal features: hour of the day and day of the week.
+        Args:
+            data: DataFrame with 'timestamp' column.
+        Returns:
+            DataFrame with new columns 'hour' and 'day_of_week'.
+        """
+        data["hour"] = data["timestamp"].dt.hour
+        data["day_of_week"] = data["timestamp"].dt.day_name()
+        return data
+
+    def normalize_data(self, data):
+        """
+        Normalizes latitude, longitude, and speed for clustering.
+        Args:
+            data: DataFrame with 'lat', 'lon', and 'speed' columns.
+        Returns:
+            Normalized DataFrame.
+        """
+        # Initialize a single scaler for latitude, longitude, and speed
+        self.scalers["features"] = StandardScaler()
+
+        # Scale lat, lon, and speed together
+        data[["lat", "lon", "speed"]] = self.scalers["features"].fit_transform(
+            data[["lat", "lon", "speed"]]
+        )
+
+        return data
+
+    def save_normalization_data(self, file_path):
+        """
+        Saves normalization scalers to a file for future use.
+        """
+        with open(file_path, "wb") as f:
+            pickle.dump(self.scalers["features"], f)  # Save combined scaler
+        print(f"Normalization data saved to {file_path}")
+
     def transform_data(self):
         """
-        Combines preprocessing and speed calculation.
+        Combines all preprocessing steps to clean, transform, and normalize the data.
+        Returns:
+            Fully preprocessed DataFrame.
         """
         cleaned_data = self.preprocess_data()
-        transformed_data = self.calculate_speed_vectorized(cleaned_data)
-        return transformed_data
+        data_with_speed = self.calculate_speed_vectorized(cleaned_data)
+        data_with_temporal = self.add_temporal_features(data_with_speed)
+        normalized_data = self.normalize_data(data_with_temporal)
+        return normalized_data
 
     @staticmethod
     def save_preprocessed_data(data, file_path):
@@ -68,39 +127,24 @@ class DataPreprocessingLayer:
         data.to_csv(file_path, index=False)
         print(f"Preprocessed data saved to {file_path}")
 
-    @staticmethod
-    def load_preprocessed_data(file_path):
-        """
-        Loads preprocessed data from a file if it exists.
-        """
-        if os.path.exists(file_path):
-            print(f"Loading preprocessed data from {file_path}")
-            return pd.read_csv(file_path, parse_dates=["timestamp"])
-        return None
-
 
 if __name__ == "__main__":
     data_directory = "/home/alierdem/mcn_pjkt/data/Geolife Trajectories 1.3/Data"
-    preprocessed_file_path = "/home/alierdem/mcn_pjkt/data/preprocessed_data.csv"
+    preprocessed_file_path = "/home/alierdem/mcn_pjkt/data/preprocessed_data_china.csv"
+    normalization_file_path = "/home/alierdem/mcn_pjkt/data/normalization_data.pkl"
 
-    # Attempt to load preprocessed data
-    preprocessed_data = DataPreprocessingLayer.load_preprocessed_data(
-        preprocessed_file_path
+    # Preprocessing needed
+    collection_layer = DataCollectionLayer(data_directory)
+    raw_data = collection_layer.load_data()
+
+    preprocess_layer = DataPreprocessingLayer(raw_data)
+    transformed_data = preprocess_layer.transform_data()
+
+    # Save the preprocessed data for future use
+    DataPreprocessingLayer.save_preprocessed_data(
+        transformed_data, preprocessed_file_path
     )
-
-    if preprocessed_data is None:
-        # Preprocessing needed
-        collection_layer = DataCollectionLayer(data_directory)
-        raw_data = collection_layer.load_data()
-
-        preprocess_layer = DataPreprocessingLayer(raw_data)
-        transformed_data = preprocess_layer.transform_data()
-
-        # Save the preprocessed data for future use
-        DataPreprocessingLayer.save_preprocessed_data(
-            transformed_data, preprocessed_file_path
-        )
-        preprocessed_data = transformed_data
+    preprocess_layer.save_normalization_data(normalization_file_path)
 
     # Print the head of the preprocessed data
-    print(preprocessed_data.head())
+    print(transformed_data.head())
