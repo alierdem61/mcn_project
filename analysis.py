@@ -1,3 +1,4 @@
+import sys
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -49,12 +50,15 @@ class PatternAnalysis:
 
         print("Normalization undone.")
 
-    def analyze_clusters(self):
+    def analyze_clusters(self, algo):
         """
         Perform analysis on the clustered data:
         - Calculate cluster centers.
         - Calculate cluster sizes.
-        - Perform temporal analysis for peak hours.
+        - Save cluster centers and sizes to a file.
+
+        Args:
+            algo (str): The clustering algorithm used.
         """
         # Cluster center analysis
         cluster_centers = self.data.groupby("cluster")[["lat", "lon"]].mean()
@@ -64,15 +68,14 @@ class PatternAnalysis:
         cluster_sizes = self.data["cluster"].value_counts()
         print("\nCluster Sizes:\n", cluster_sizes)
 
-        # Temporal analysis (assuming 'hour' column exists)
-        if "timestamp" in self.data.columns:
-            self.data["hour"] = pd.to_datetime(self.data["timestamp"]).dt.hour
-            peak_hours = (
-                self.data.groupby("cluster")["hour"]
-                .value_counts()
-                .unstack(fill_value=0)
-            )
-            print("\nPeak Hours for Each Cluster:\n", peak_hours)
+        # Save cluster centers and sizes to a file
+        output_file = f"{algo}_cluster_analysis.txt"
+        with open(output_file, "w") as f:
+            f.write("Cluster Centers:\n")
+            f.write(cluster_centers.to_string())
+            f.write("\n\nCluster Sizes:\n")
+            f.write(cluster_sizes.to_string())
+        print(f"Cluster centers and sizes saved to {output_file}")
 
     def visualize_clusters(self, algo):
         """
@@ -120,30 +123,38 @@ class PatternAnalysis:
 
 
 if __name__ == "__main__":
-    # Perform analysis and visualization
-    algorithm_used = "kmeans"  # Replace with the actual algorithm used
+    if len(sys.argv) < 2:
+        print("Usage: python analysis.py <algorithm(s)>")
+        print("Available algorithms: kmeans, hdbscan, birch, agglomerative, all")
+        sys.exit(1)
 
-    # Path to the clustered data CSV file
-    clustered_file_path = (
-        f"/home/alierdem/mcn_pjkt/data/{algorithm_used}_clustered_data.csv"
-    )
+    algorithms_to_run = sys.argv[1:]
+    if "all" in algorithms_to_run:
+        algorithms_to_run = ["kmeans", "hdbscan", "birch", "agglomerative"]
+
     normalization_params_path = "/home/alierdem/mcn_pjkt/data/normalization_data.pkl"
 
-    if not os.path.exists(clustered_file_path):
-        raise FileNotFoundError(
-            f"Clustered data file not found at {clustered_file_path}. Please run clustering first."
+    for algorithm_used in algorithms_to_run:
+        clustered_file_path = (
+            f"/home/alierdem/mcn_pjkt/data/{algorithm_used}_clustered_data.csv"
         )
 
-    # Load the clustered data
-    clustered_data = pd.read_csv(clustered_file_path)
+        if not os.path.exists(clustered_file_path):
+            print(
+                f"Clustered data file not found for algorithm: {algorithm_used}. Skipping."
+            )
+            continue
 
-    # Initialize PatternAnalysis
-    pattern_analysis = PatternAnalysis(clustered_data, normalization_params_path)
+        # Load the clustered data
+        clustered_data = pd.read_csv(clustered_file_path)
 
-    # Undo normalization before analysis
-    pattern_analysis.undo_normalization()
+        # Initialize PatternAnalysis
+        pattern_analysis = PatternAnalysis(clustered_data, normalization_params_path)
 
-    # Perform analysis and visualization
-    pattern_analysis.analyze_clusters()
-    pattern_analysis.visualize_clusters(algorithm_used)
-    pattern_analysis.plot_temporal_heatmap(algorithm_used)
+        # Undo normalization before analysis
+        pattern_analysis.undo_normalization()
+
+        # Perform analysis and visualization
+        pattern_analysis.analyze_clusters(algorithm_used)
+        pattern_analysis.visualize_clusters(algorithm_used)
+        pattern_analysis.plot_temporal_heatmap(algorithm_used)

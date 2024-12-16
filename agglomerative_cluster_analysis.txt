@@ -1,0 +1,12 @@
+Cluster Centers:
+               lat         lon
+cluster                       
+0        28.318884  116.527810
+1        39.894397  116.451398
+2        34.571543   96.941778
+
+Cluster Sizes:
+cluster
+1    22066
+0     1446
+2      574

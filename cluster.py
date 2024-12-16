@@ -76,7 +76,7 @@ def run_clustering(algorithm, data, clustering_data):
             min_samples=15,
             min_cluster_size=10,
             metric="euclidean",
-            cluster_selection_epsilon=0.1,
+            cluster_selection_epsilon=0.2,
         )
         clustered_data = model.fit(pd.DataFrame(sampled_data))
         save_clustered_data(clustered_data, data.iloc[sampled_indices], algorithm)
@@ -84,7 +84,7 @@ def run_clustering(algorithm, data, clustering_data):
     elif algorithm == "birch":
         print("Running Birch...")
         model = ClusteringModel(
-            algorithm="birch", n_clusters=None, threshold=0.3, branching_factor=50
+            algorithm="birch", n_clusters=None, threshold=0.45, branching_factor=50
         )
         clustered_data = model.fit(pd.DataFrame(clustering_data))
         save_clustered_data(clustered_data, data, algorithm)

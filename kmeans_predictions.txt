@@ -1,0 +1,2 @@
+Algorithm: kmeans
+Prediction Accuracy: 98.96%

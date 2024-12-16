@@ -1,0 +1,2 @@
+Algorithm: agglomerative
+Prediction Accuracy: 95.31%

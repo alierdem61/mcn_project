@@ -1,5 +1,10 @@
 env/
 __pycache__/
+outputs/
 *.png
 *.txt
 *.csv
+!*analysis.txt
+!*metrics.txt
+!*predictions.txt
+!*map.png

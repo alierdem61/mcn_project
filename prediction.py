@@ -1,16 +1,17 @@
+import sys
 import pandas as pd
 import numpy as np
 
 
 def process_cluster_sequences(file_path):
     """
-    Process the clustered data to generate sorted cluster sequences for each user.
+    Process the clustered data to generate a single sorted cluster sequence.
 
     Args:
         file_path (str): Path to the clustered data CSV file.
 
     Returns:
-        dict: A dictionary with user IDs as keys (or a single sequence for datasets without user IDs).
+        list: A single sequence of clusters sorted by timestamp.
     """
     # Load the clustered data
     data = pd.read_csv(file_path)
@@ -21,14 +22,9 @@ def process_cluster_sequences(file_path):
     # Sort data by timestamp
     data = data.sort_values(by="timestamp")
 
-    # Check if user_id exists; group by user if present
-    if "user_id" in data.columns:
-        cluster_sequences = data.groupby("user_id")["cluster"].apply(list).to_dict()
-    else:
-        # If no user_id, treat the dataset as a single sequence
-        cluster_sequences = {"all_users": data["cluster"].tolist()}
-
-    return cluster_sequences
+    # Return the cluster sequence as a list
+    cluster_sequence = data["cluster"].tolist()
+    return cluster_sequence
 
 
 def split_sequence(sequence, test_size=0.2):
@@ -48,12 +44,12 @@ def split_sequence(sequence, test_size=0.2):
     return train_sequence, test_sequence
 
 
-def build_transition_matrix(cluster_sequences, n_clusters):
+def build_transition_matrix(sequence, n_clusters):
     """
-    Build a transition probability matrix from cluster sequences.
+    Build a transition probability matrix from a cluster sequence.
 
     Args:
-        cluster_sequences (dict): Dictionary of cluster sequences.
+        sequence (list): A single sequence of clusters.
         n_clusters (int): Number of unique clusters.
 
     Returns:
@@ -63,11 +59,10 @@ def build_transition_matrix(cluster_sequences, n_clusters):
     transition_matrix = np.zeros((n_clusters, n_clusters))
 
     # Count transitions
-    for sequence in cluster_sequences.values():
-        for i in range(len(sequence) - 1):
-            from_cluster = sequence[i]
-            to_cluster = sequence[i + 1]
-            transition_matrix[from_cluster, to_cluster] += 1
+    for i in range(len(sequence) - 1):
+        from_cluster = sequence[i]
+        to_cluster = sequence[i + 1]
+        transition_matrix[from_cluster, to_cluster] += 1
 
     # Normalize rows to convert counts to probabilities
     row_sums = transition_matrix.sum(axis=1, keepdims=True)
@@ -135,61 +130,83 @@ def evaluate_predictions(test_sequence, transition_matrix):
     return accuracy
 
 
-def save_predictions_to_file(algorithm_name, accuracy, file_path="predictions.txt"):
+def save_results_to_file(
+    algorithm_name,
+    accuracy,
+    transition_matrix,
+    train_size,
+    test_size,
+    file_path="predictions.txt",
+):
     """
-    Save prediction results to a file.
+    Save prediction results, transition matrix, and other information to a file.
 
     Args:
         algorithm_name (str): Name of the clustering algorithm used.
         accuracy (float): Prediction accuracy as a percentage.
+        transition_matrix (np.ndarray): Transition probability matrix.
+        train_size (int): Number of samples in the training sequence.
+        test_size (int): Number of samples in the testing sequence.
         file_path (str): File path for saving predictions.
     """
     output_file = f"{algorithm_name}_{file_path}"
     with open(output_file, "w") as f:
         f.write(f"Algorithm: {algorithm_name}\n")
         f.write(f"Prediction Accuracy: {accuracy:.2f}%\n")
-    print(f"Prediction results saved to {output_file}")
+        f.write(f"Training Sequence Size: {train_size}\n")
+        f.write(f"Testing Sequence Size: {test_size}\n")
+        f.write("\nTransition Matrix:\n")
+        np.savetxt(f, transition_matrix, fmt="%.4f")
+    print(f"Results saved to {output_file}")
 
 
 if __name__ == "__main__":
-    algorithm_name = "agglomerative"
+    if len(sys.argv) < 2:
+        print("Usage: python predict.py <algorithm(s)>")
+        print("Available algorithms: kmeans, hdbscan, birch, agglomerative, all")
+        sys.exit(1)
 
-    # Example usage
-    file_path = f"/home/alierdem/mcn_pjkt/data/{algorithm_name}_clustered_data.csv"  # Replace with the actual file path
-    cluster_sequences = process_cluster_sequences(file_path)
+    algorithms_to_run = sys.argv[1:]
+    if "all" in algorithms_to_run:
+        algorithms_to_run = ["kmeans", "hdbscan", "birch", "agglomerative"]
 
-    # Output example sequences
-    for user_id, sequence in cluster_sequences.items():
-        print(
-            f"User ID: {user_id}, Sequence: {sequence[:10]}"
-        )  # First 10 clusters for each user
+    for algorithm_name in algorithms_to_run:
+        file_path = f"/home/alierdem/mcn_pjkt/data/{algorithm_name}_clustered_data.csv"
 
-    # Handle single sequence case
-    all_users_sequence = cluster_sequences["all_users"]
-    train_sequence, test_sequence = split_sequence(all_users_sequence, test_size=0.2)
-    print(
-        f"\nTraining Sequence Length: {len(train_sequence)}, Testing Sequence Length: {len(test_sequence)}"
-    )
+        try:
+            cluster_sequence = process_cluster_sequences(file_path)
 
-    # Get the number of unique clusters
-    n_clusters = len(set(all_users_sequence))
+            # Handle single sequence case
+            if not cluster_sequence:
+                print(f"No sequence data available for algorithm: {algorithm_name}")
+                continue
 
-    # Build transition matrix using training data
-    train_sequences = {"all_users": train_sequence}
-    transition_matrix = build_transition_matrix(train_sequences, n_clusters)
-    print("\nTransition Probability Matrix:")
-    print(transition_matrix)
+            train_sequence, test_sequence = split_sequence(
+                cluster_sequence, test_size=0.2
+            )
+            print(
+                f"\nTraining Sequence Length: {len(train_sequence)}, Testing Sequence Length: {len(test_sequence)}"
+            )
 
-    # Example prediction
-    current_cluster = 1  # Replace with an actual cluster from your data
-    predicted_cluster = predict_next_cluster(current_cluster, transition_matrix)
-    print(
-        f"\nPredicted next cluster for current cluster {current_cluster}: {predicted_cluster}"
-    )
+            # Get the number of unique clusters
+            n_clusters = len(set(cluster_sequence))
 
-    # Evaluate predictions on test data
-    accuracy = evaluate_predictions(test_sequence, transition_matrix)
-    print(f"\nPrediction Accuracy: {accuracy:.2f}%")
+            # Build transition matrix using training data
+            transition_matrix = build_transition_matrix(train_sequence, n_clusters)
 
-    # Save predictions to a file
-    save_predictions_to_file(algorithm_name, accuracy)
+            # Evaluate predictions on test data
+            accuracy = evaluate_predictions(test_sequence, transition_matrix)
+            print(f"\nPrediction Accuracy for {algorithm_name}: {accuracy:.2f}%")
+
+            # Save results to a file
+            save_results_to_file(
+                algorithm_name,
+                accuracy,
+                transition_matrix,
+                len(train_sequence),
+                len(test_sequence),
+            )
+        except FileNotFoundError:
+            print(
+                f"Clustered data file not found for algorithm: {algorithm_name}. Skipping."
+            )

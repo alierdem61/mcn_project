@@ -1,0 +1,2 @@
+silhouette_score: 0.5482290746826021
+davies_bouldin_index: 0.26583854685034075
